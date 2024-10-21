@@ -78,6 +78,8 @@ static tAVRC_STS avrc_ctrl_pars_vendor_cmd(tAVRC_MSG_VENDOR* p_msg,
       break;
     }
     case AVRC_PDU_REGISTER_NOTIFICATION: /* 0x31 */
+      if (len < 5) return AVRC_STS_INTERNAL_ERR;
+
       BE_STREAM_TO_UINT8(p_result->reg_notif.event_id, p);
       BE_STREAM_TO_UINT32(p_result->reg_notif.param, p);
 
@@ -123,6 +125,13 @@ static tAVRC_STS avrc_pars_vendor_cmd(tAVRC_MSG_VENDOR* p_msg,
   if (p_msg->vendor_len == 0) return AVRC_STS_NO_ERROR;
   if (p_msg->p_vendor_data == NULL) return AVRC_STS_INTERNAL_ERR;
 
+  if (p_msg->vendor_len < 4) {
+     android_errorWriteLog(0x534e4554, "168712382");
+     AVRC_TRACE_WARNING("%s: message length %d too short: must be at least 4",
+                        __func__, p_msg->vendor_len);
+     return AVRC_STS_INTERNAL_ERR;
+  }
+
   p = p_msg->p_vendor_data;
   p_result->pdu = *p++;
   AVRC_TRACE_DEBUG("%s pdu:0x%x", __func__, p_result->pdu);
@@ -144,6 +153,7 @@ static tAVRC_STS avrc_pars_vendor_cmd(tAVRC_MSG_VENDOR* p_msg,
 
   switch (p_result->pdu) {
     case AVRC_PDU_GET_CAPABILITIES: /* 0x10 */
+      if (len == 0) return AVRC_STS_INTERNAL_ERR;
       p_result->get_caps.capability_id = *p++;
       if (!AVRC_IS_VALID_CAP_ID(p_result->get_caps.capability_id))
         status = AVRC_STS_BAD_PARAM;
@@ -157,6 +167,7 @@ static tAVRC_STS avrc_pars_vendor_cmd(tAVRC_MSG_VENDOR* p_msg,
       break;
 
     case AVRC_PDU_LIST_PLAYER_APP_VALUES: /* 0x12 */
+      if (len == 0) return AVRC_STS_INTERNAL_ERR;
       p_result->list_app_values.attr_id = *p++;
       if (!AVRC_IS_VALID_ATTRIBUTE(p_result->list_app_values.attr_id))
         status = AVRC_STS_BAD_PARAM;
@@ -166,6 +177,7 @@ static tAVRC_STS avrc_pars_vendor_cmd(tAVRC_MSG_VENDOR* p_msg,
 
     case AVRC_PDU_GET_CUR_PLAYER_APP_VALUE: /* 0x13 */
     case AVRC_PDU_GET_PLAYER_APP_ATTR_TEXT: /* 0x15 */
+      if (len == 0) return AVRC_STS_INTERNAL_ERR;
       BE_STREAM_TO_UINT8(p_result->get_cur_app_val.num_attr, p);
       if (len != (p_result->get_cur_app_val.num_attr + 1)) {
         status = AVRC_STS_INTERNAL_ERR;
@@ -190,6 +202,7 @@ static tAVRC_STS avrc_pars_vendor_cmd(tAVRC_MSG_VENDOR* p_msg,
       break;
 
     case AVRC_PDU_SET_PLAYER_APP_VALUE: /* 0x14 */
+      if (len == 0) return AVRC_STS_INTERNAL_ERR;
       BE_STREAM_TO_UINT8(p_result->set_app_val.num_val, p);
       size_needed = sizeof(tAVRC_APP_SETTING);
       if (p_buf && (len == ((p_result->set_app_val.num_val << 1) + 1))) {
@@ -315,12 +328,9 @@ static tAVRC_STS avrc_pars_vendor_cmd(tAVRC_MSG_VENDOR* p_msg,
       break;
 
     case AVRC_PDU_REGISTER_NOTIFICATION: /* 0x31 */
-      if (len != 5) {
-        status = AVRC_STS_INTERNAL_ERR;
-        AVRC_TRACE_ERROR("%s: length is incorrect, status: %d", __func__, status);
-        BE_STREAM_TO_UINT8(p_result->reg_notif.event_id, p);
-        AVRC_TRACE_DEBUG("avrc_pars_vendor_cmd() event id: %d", p_result->reg_notif.event_id);
-      } else {
+      if (len != 5)
+        return AVRC_STS_INTERNAL_ERR;
+      else {
         BE_STREAM_TO_UINT8(p_result->reg_notif.event_id, p);
         if (!AVRC_IS_VALID_EVENT_ID(p_result->reg_notif.event_id)) {
           android_errorWriteLog(0x534e4554, "168802990");
@@ -448,7 +458,7 @@ static tAVRC_STS avrc_pars_browsing_cmd(tAVRC_MSG_BROWSE* p_msg,
   tAVRC_STS status = AVRC_STS_NO_ERROR;
   uint8_t* p = p_msg->p_browse_data;
   int count, p_browse_packet_len = 0;
-  uint16_t min_len = 3;
+  uint32_t min_len = 3;
 
   p_result->pdu = *p++;
   AVRC_TRACE_DEBUG("%s: pdu:0x%x, *p:%d , buf_len: %d",
@@ -620,6 +630,11 @@ static tAVRC_STS avrc_pars_browsing_cmd(tAVRC_MSG_BROWSE* p_msg,
       }
       BE_STREAM_TO_UINT16(p_result->search.string.charset_id, p);
       BE_STREAM_TO_UINT16(p_result->search.string.str_len, p);
+      if (p_browse_packet_len - 4 != p_result->search.string.str_len) {
+        AVRC_TRACE_ERROR("%s: browse packet length criteria didn't match,status:%d ",
+                                 __func__, status);
+        return AVRC_STS_BAD_CMD;
+      }
       p_result->search.string.p_str = p_buf;
       if (p_buf) {
         AVRC_TRACE_DEBUG("%s: p_buf is valid", __func__);

@@ -22,6 +22,7 @@
  *
  ******************************************************************************/
 
+#include <log/log.h>
 #include <string.h>
 #include "avct_api.h"
 #include "avct_int.h"
@@ -54,6 +55,12 @@ static BT_HDR* avct_lcb_msg_asmbl(tAVCT_LCB* p_lcb, BT_HDR* p_buf) {
   uint8_t* p;
   uint8_t pkt_type;
   BT_HDR* p_ret;
+
+  if (p_buf->len < 1) {
+    osi_free(p_buf);
+    p_ret = NULL;
+    return p_ret;
+  }
 
   /* parse the message header */
   p = (uint8_t*)(p_buf + 1) + p_buf->offset;

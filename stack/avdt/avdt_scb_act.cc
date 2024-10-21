@@ -282,7 +282,7 @@ void avdt_scb_hdl_pkt_no_frag(tAVDT_SCB* p_scb, tAVDT_SCB_EVT* p_data) {
     p += ex_len * 4;
   }
 
-  if ((p - p_start) > len) {
+  if ((p - p_start) >= len) {
     android_errorWriteLog(0x534e4554, "142546355");
     osi_free_and_reset((void**)&p_data->p_pkt);
     return;
@@ -292,11 +292,11 @@ void avdt_scb_hdl_pkt_no_frag(tAVDT_SCB* p_scb, tAVDT_SCB_EVT* p_data) {
   /* adjust length for any padding at end of packet */
   if (o_p) {
     /* padding length in last byte of packet */
-    pad_len = *(p_start + len);
+    pad_len = *(p_start + len - 1);
   }
 
   /* do sanity check */
-  if (pad_len > (len - offset)) {
+  if (pad_len >= (len - offset)) {
     AVDT_TRACE_WARNING("Got bad media packet");
     osi_free_and_reset((void**)&p_data->p_pkt);
   }
@@ -339,7 +339,7 @@ uint8_t* avdt_scb_hdl_report(tAVDT_SCB* p_scb, uint8_t* p, uint16_t len) {
   uint8_t* p_start = p;
   uint32_t ssrc;
   uint8_t o_v, o_p, o_cc;
-  uint16_t min_len = 0;
+  uint32_t min_len = 0;
   AVDT_REPORT_TYPE pt;
   tAVDT_REPORT_DATA report;
 
@@ -673,10 +673,10 @@ void avdt_scb_hdl_setconfig_cmd(tAVDT_SCB* p_scb, tAVDT_SCB_EVT* p_data) {
   tAVDT_CFG* p_cfg;
   tA2DP_CODEC_TYPE codec_type;
   AVDT_TRACE_WARNING("avdt_scb_hdl_setconfig_cmd: SCB in use: %d, Conn in progress: %d, avdt_check_sep_state: %d",
-       p_scb->in_use, avdt_cb.conn_in_progress, avdt_check_sep_state(p_scb));
+       p_scb->in_use, avdt_cb.conn_in_progress[p_scb->peer_addr], avdt_check_sep_state(p_scb));
 
   if ((!p_scb->in_use) && !(avdt_check_sep_state(p_scb)) &&
-      (!avdt_cb.conn_in_progress)) {
+      (!avdt_cb.conn_in_progress[p_scb->peer_addr])) {
     A2DP_DumpCodecInfo(p_scb->cs.cfg.codec_info);
     A2DP_DumpCodecInfo(p_data->msg.config_cmd.p_cfg->codec_info);
     p_cfg = p_data->msg.config_cmd.p_cfg;

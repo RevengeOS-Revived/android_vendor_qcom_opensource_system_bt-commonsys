@@ -496,6 +496,8 @@ void bta_ag_rfc_close(tBTA_AG_SCB* p_scb, UNUSED_ATTR tBTA_AG_DATA* p_data) {
   alarm_cancel(p_scb->ring_timer);
   alarm_cancel(p_scb->codec_negotiation_timer);
   alarm_cancel(p_scb->xsco_conn_collision_timer);
+  p_scb->no_of_xsco_trials = 0;
+  p_scb->no_of_xsco_retry = 0;
 
   close.hdr.handle = bta_ag_scb_to_idx(p_scb);
   close.hdr.app_id = p_scb->app_id;
@@ -677,6 +679,11 @@ void bta_ag_rfc_acp_open(tBTA_AG_SCB* p_scb, tBTA_AG_DATA* p_data) {
             bta_ag_handle_collision(ag_scb, NULL);
             ag_scb->state = BTA_AG_INIT_ST;
             ag_scb->peer_addr = RawAddress::kEmpty;
+            if (ag_scb->conn_handle) {
+                APPL_TRACE_WARNING("%s: remove rfcomm connection: %d",
+                                    __func__, ag_scb->conn_handle);
+                RFCOMM_RemoveConnection(ag_scb->conn_handle);
+            }
             ag_scb->conn_handle = 0;
           }
           /* Outgoing RFCOMM is just connected, SLC didn't finish.

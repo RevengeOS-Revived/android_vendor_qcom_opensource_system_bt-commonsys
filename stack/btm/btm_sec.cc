@@ -1510,6 +1510,11 @@ static tBTM_STATUS btm_sec_send_hci_disconnect(tBTM_SEC_DEV_REC* p_dev_rec,
       break;
   }
 
+  if (p_dev_rec->sec_state & BTM_SEC_STATE_DISCONNECTING_BLE) {
+    p_dev_rec->is_le_disc_pending = true;
+    BTM_TRACE_EVENT("btm_sec_send_hci_disconnect:  handle:0x%x, state =0x%x",
+        conn_handle, p_dev_rec->sec_state);
+  }
   /* If a role switch is in progress, delay the HCI Disconnect to avoid
    * controller problem */
   if (p_dev_rec->rs_disc_pending == BTM_SEC_RS_PENDING &&
@@ -2964,6 +2969,8 @@ void btm_sec_dev_reset(void) {
     /* add mx service to use no security */
     BTM_SetSecurityLevel(false, "RFC_MUX", BTM_SEC_SERVICE_RFC_MUX,
                          BTM_SEC_NONE, BT_PSM_RFCOMM, BTM_SEC_PROTO_RFCOMM, 0);
+    BTM_SetSecurityLevel(true, "RFC_MUX", BTM_SEC_SERVICE_RFC_MUX, BTM_SEC_NONE,
+                         BT_PSM_RFCOMM, BTM_SEC_PROTO_RFCOMM, 0);
   } else {
     btm_cb.security_mode = BTM_SEC_MODE_SERVICE;
   }
@@ -5713,8 +5720,17 @@ tBTM_SEC_SERV_REC* btm_sec_find_first_serv(CONNECTION_TYPE conn_type,
   /* otherwise, just find the first record with the specified PSM */
   for (i = 0; i < BTM_SEC_MAX_SERVICE_RECORDS; i++, p_serv_rec++) {
     if ((p_serv_rec->security_flags & BTM_SEC_IN_USE) &&
-        (p_serv_rec->psm == psm))
-      return (p_serv_rec);
+        (p_serv_rec->psm == psm)) {
+      if (psm == BT_PSM_RFCOMM  && is_originator && !strncmp("RFC_MUX",
+          (char*)p_serv_rec->orig_service_name, BTM_SEC_SERVICE_NAME_LEN - 1)) {
+        return (p_serv_rec);
+      } else if (psm == BT_PSM_RFCOMM  && !is_originator && !strncmp("RFC_MUX",
+          (char*)p_serv_rec->term_service_name, BTM_SEC_SERVICE_NAME_LEN - 1)) {
+        return (p_serv_rec);
+      } if (psm != BT_PSM_RFCOMM) {
+        return (p_serv_rec);
+      }
+    }
   }
   return (NULL);
 }
